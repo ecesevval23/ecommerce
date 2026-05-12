@@ -1,15 +1,15 @@
 # 🛒 E-Ticaret Talep Tahmini ve Akıllı Stok Yönetimi
 
-> **Ders:** Veri Madenciliği | **Dönem:** 2025-2026 Bahar  
+> **Ders:** Veri Madenciliği | **Dönem:** 2024-2025 Bahar  
 > **Konu:** XGBoost tabanlı zaman serisi talep tahmini ve Streamlit karar destek arayüzü
 
 ---
 
 ## 📌 Proje Hakkında
 
-Bu proje, bir e-ticaret platformunun geçmiş satış verilerini analiz ederek **yarınki ürün talebini tahmin eden** ve bu tahmini **aksiyon alınabilir stok kararlarına** dönüştüren bir karar destek sistemidir.
+Bu proje, bir e-ticaret platformunun geçmiş satış verilerini analiz ederek **önümüzdeki 7 günün ürün talebini** tahmin eden ve bu tahminleri **aksiyon alınabilir stok kararlarına** dönüştüren bir karar destek sistemidir.
 
-Gerçek dünyada Amazon, Trendyol ve Walmart gibi şirketlerin kullandığı **Demand Forecasting (Talep Tahmin)** motorlarının temel prensiplerine dayanan bu sistem; XGBoost makine öğrenmesi algoritmasını, zaman serisi özellik mühendisliğini ve interaktif bir Streamlit arayüzünü birleştirir.
+XGBoost makine öğrenmesi algoritması, 22 farklı zaman serisi özelliği ve **özyinelemeli (recursive) forecasting** yöntemiyle çalışır.
 
 ---
 
@@ -19,26 +19,18 @@ Gerçek dünyada Amazon, Trendyol ve Walmart gibi şirketlerin kullandığı **D
 synthetic_ecommerce_dataset.csv   (Ham Sipariş Kayıtları — 10.000 satır, 13 sütun)
               │
               ├─── Veri Ön İşleme (One-Hot Encoding, Normalizasyon)
-              │           │
               │           └──► temiz_veri.csv
-              │                      │
-              │              ┌───────┴───────┐
-              │           Anasayfa.py    2_Veri_Analizi.py
-              │           (KPI Paneli)   (EDA Görselleştirme)
+              │                 ├── Anasayfa.py (KPI Paneli)
+              │                 └── 2_Veri_Analizi.py (EDA)
               │
               └─── Zaman Serisi Özellik Mühendisliği
-                          │
                           │   Lag (1,2,3,7,14,21,30 gün)
                           │   Rolling Mean & Std (3,7,14,30 gün)
-                          │   Tarihsel özellikler (gün, ay, hafta sonu...)
-                          │
                           ▼
-               XGBoost Modeli Eğitimi (Kronolojik %80/%20 split)
+               XGBoost Modeli → xgboost_demand_forecasting.pkl
                           │
-                          └──► xgboost_demand_forecasting.pkl
-                                       │
-                               1_Talep_Tahmini.py      3_Model_Performansi.py
-                               (Anlık Tahmin + Karar)  (Metrikler + Açıklanabilirlik)
+                          ├── 1_Talep_Tahmini.py (7 Günlük Recursive Tahmin)
+                          └── 3_Model_Performansi.py (Metrikler)
 ```
 
 ---
@@ -47,18 +39,17 @@ synthetic_ecommerce_dataset.csv   (Ham Sipariş Kayıtları — 10.000 satır, 1
 
 ```
 E-Ticaret/
-│
 ├── Anasayfa.py                      # Ana dashboard — KPI metrikleri, satış trendleri
-│
 ├── pages/
-│   ├── 1_🔮_Talep_Tahmini.py        # XGBoost tahmini + akıllı stok karar motoru
-│   ├── 2_📊_Veri_Analizi.py         # Keşifsel veri analizi (EDA) ve görselleştirme
+│   ├── 1_🔮_Talep_Tahmini.py        # 7 günlük recursive tahmin + stok karar motoru
+│   ├── 2_📊_Veri_Analizi.py         # Keşifsel veri analizi (EDA)
 │   └── 3_⚙️_Model_Performansi.py    # Model metrikleri ve feature importance
-│
-└── data/
-    ├── synthetic_ecommerce_dataset.csv   # Ham veri seti (model ve EDA için ana kaynak)
-    ├── temiz_veri.csv                    # Ön işlenmiş veri (EDA görselleştirmeleri için)
-    └── xgboost_demand_forecasting.pkl    # Eğitilmiş XGBoost modeli
+├── data/
+│   ├── synthetic_ecommerce_dataset.csv   # Ham veri seti
+│   ├── temiz_veri.csv                    # Ön işlenmiş veri (EDA için)
+│   └── xgboost_demand_forecasting.pkl    # Eğitilmiş XGBoost modeli
+├── requirements.txt
+└── README.md
 ```
 
 ---
@@ -76,83 +67,58 @@ E-Ticaret/
 | colsample_bytree | 0.8 |
 | objective | reg:squarederror |
 
-### Özellik Mühendisliği (22 Özellik)
-
-| Grup | Özellikler |
-|------|-----------|
-| **Lag (Geçmiş Satış)** | 1, 2, 3, 7, 14, 21, 30 gün önceki satış |
-| **Rolling Mean** | 3, 7, 14, 30 günlük hareketli ortalama |
-| **Rolling Std** | 3, 7, 14, 30 günlük standart sapma |
-| **Zamansal** | Gün, Ay, Haftanın Günü, Hafta No, Hafta Sonu, Zaman Trendi |
-| **Ürün** | Label Encoded ürün kodu |
-
 ### Başarım Metrikleri (Test Seti — Kronolojik %20)
 
 | Metrik | Değer | Açıklama |
 |--------|-------|---------|
-| **R² Skoru** | 0.9637 | Log uzayında hesaplanmıştır |
-| **MAE** | 0.12 | Log uzayında ≈ 0.13 adet gerçek sapma |
-| **RMSE** | 0.37 | Log uzayında ≈ 0.45 adet gerçek sapma |
+| **R²** | 0.9637 | Log uzayında |
+| **MAE** | 0.12 | ≈ 0.13 adet gerçek sapma |
+| **RMSE** | 0.37 | ≈ 0.45 adet gerçek sapma |
 
-> **Not:** Metrikler `np.log1p()` transform sonrası log uzayında hesaplanmıştır. Bu, e-ticarette yaygın olan "aralıklı talep (intermittent demand)" verisini modellemede endüstri standardı bir yaklaşımdır. Ham ölçekteki tahmin sapması ortalama **0.13 adet/gün**'dür.
+### Veri Yapısı: Aralıklı Talep (Intermittent Demand)
+
+Bir ürün **günlerin %71'inde hiç satılmıyor**, satıldığı gün ise ortalama **3.54 adet** satılıyor. Bu kalıp e-ticarette çok yaygındır. Model bu yapıyı doğru yakalıyor — tahminler 0-0-0-7-0-6 şeklinde görünür.
+
+### Recursive (Özyinelemeli) Forecasting
+
+Model tek seferde 1 gün ileriye tahmin yapar. Ancak bu tahmini "gerçekleşmiş satış" gibi kabul edip bir sonraki günü de tahmin ederiz. Bu döngüyü 7 kez tekrarlayarak haftalık projeksiyon elde ederiz.
 
 ---
 
 ## 🎯 Temel Tasarım Kararları
 
-### 1. Neden İki Farklı Veri Seti?
-- `temiz_veri.csv` → One-Hot Encoded hali → EDA ve görselleştirme için idealdir.
-- `synthetic_ecommerce_dataset.csv` → Ham satış kayıtları → Zaman serisi özellik hesabı (`product` ve `purchase_date` sütunları) için zorunludur.
-- Bu ayrım, gerçek dünya veri bilimi pipeline'larında standarttır.
+### Neden İki Farklı Veri Seti?
+- `temiz_veri.csv` → One-Hot Encoded → EDA ve görselleştirme
+- `synthetic_ecommerce_dataset.csv` → Ham kayıtlar → Zaman serisi özellik hesabı
 
-### 2. Neden Sadece 1 Gün Sonrası Tahmin?
-XGBoost, `lag_1` (dünkü satış) gibi anlık geçmiş verilere dayandığı için **T+1 (Ertesi Gün)** tahmini için optimize edilmiştir. Daha ileri tarihlerde model kendi ürettiği tahminleri baz almak zorunda kalır (özyineli tahmin), bu da hata oranını üstel olarak büyütür. Bu nedenle sistem tarih seçimini kaldırmış, her zaman en güvenilir tarihi (son verinin ertesi günü) otomatik hedefler.
-
-### 3. Dinamik Stok Karar Eşiği
-Stok aksiyonları sabit rakamlarla değil, **her ürünün kendi 30 günlük ortalamasına göre dinamik eşiklerle** belirlenir:
-- `Yüksek Talep Eşiği = max(2, ceil(ort × 1.5))`
-- `Normal Talep Eşiği = max(1, floor(ort × 0.5))`
-
-Bu yaklaşım, günde 0.8 ortalama satan bir ürünle günde 5 ortalama satan bir ürünü aynı eşikle değerlendirme hatasını önler.
+### Dinamik Stok Karar Eşiği
+Stok aksiyonları her ürünün kendi 30 günlük ortalamasına göre belirlenir:
+- **Stok Artır:** Haftalık tahmin > Haftalık ortalama × 1.3
+- **Stok Koru:** Haftalık tahmin ≥ Haftalık ortalama × 0.7
+- **Stok Azalt:** Haftalık tahmin < Haftalık ortalama × 0.7
 
 ---
 
 ## 🚀 Kurulum ve Çalıştırma
 
 ```bash
-# Sanal ortamı etkinleştir (Windows)
+# Sanal ortamı etkinleştir
 .\Scripts\activate
 
-# Gerekli kütüphaneleri yükle
-pip install streamlit pandas numpy matplotlib seaborn scikit-learn xgboost
+# Bağımlılıkları yükle
+pip install -r requirements.txt
 
 # Uygulamayı başlat
 streamlit run Anasayfa.py
 ```
 
-> **Not:** `requirements.txt` dosyası oluşturmak için:
-> ```bash
-> pip freeze > requirements.txt
-> ```
-
 ---
 
-## 📊 Sayfalar ve İşlevleri
+## 📊 Sayfalar
 
 | Sayfa | İşlev |
 |-------|-------|
-| **Anasayfa** | Toplam satış, ortalama fiyat, en popüler kategori KPI'ları; aylık trend ve ödeme yöntemi grafikleri |
-| **Talep Tahmini** | Ürün seçimi → XGBoost ile anlık tahmin → Dinamik stok karar aksiyonu → 30 günlük trend grafiği |
-| **Veri Analizi** | Kategori bazlı satış (80 ürün), haftanın günü yoğunluğu, KDE dağılımı, korelasyon matrisi, scatter analizleri |
-| **Model Performansı** | R²/MAE/RMSE metrikleri, log-transform açıklaması, feature importance grafiği, model hiper-parametreleri |
-
----
-
-## 🚀 GitHub'a Push Öncesi Kontrol Listesi
-
-- [ ] `requirements.txt` oluşturuldu: `pip freeze > requirements.txt`
-- [ ] `.gitignore` dosyası `data/temiz_veri.csv` ve `data/xgboost_demand_forecasting.pkl` büyük dosyalar için güncellendi (isteğe bağlı)
-- [ ] Sanal ortam klasörleri (`Scripts/`, `Lib/`, `Include/`) `.gitignore`'da
-- [ ] `pyvenv.cfg` `.gitignore`'da (isteğe bağlı)
-
-> **⚠️ Dikkat:** `xgboost_demand_forecasting.pkl` dosyası ~37 MB. GitHub'un 100MB sınırı içinde ama büyük dosyalar için [Git LFS](https://git-lfs.github.com/) önerilir.
+| **Anasayfa** | KPI metrikleri, aylık trend ve ödeme yöntemi grafikleri |
+| **Talep Tahmini** | Ürün seçimi → 7 günlük recursive tahmin → Haftalık stok aksiyonu → Trend grafiği |
+| **Veri Analizi** | Kategori bazlı satış, günlük yoğunluk, KDE, korelasyon, scatter |
+| **Model Performansı** | R²/MAE/RMSE, aralıklı talep açıklaması, feature importance |

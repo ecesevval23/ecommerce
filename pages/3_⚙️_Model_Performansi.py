@@ -32,14 +32,14 @@ st.subheader("🔬 Metrikler Neden Bu Kadar İyi? (Dürüst Teknik Açıklama)")
 
 col_a, col_b = st.columns(2)
 with col_a:
-    st.markdown("**Log Transform Etkisi**")
+    st.markdown("**Aralıklı Talep ve Log Transform**")
     st.write(
-        "Model, ham satış adedi (`quantity`) yerine `log(quantity + 1)` değeri üzerinde eğitilmiştir. "
-        "Bu teknik, 0-1-2-3 gibi küçük tam sayıların büyük göreli farklarını sıkıştırarak "
-        "modelin bu değerleri yakalamasını kolaylaştırır. Sonuç olarak metrikler log uzayında "
-        "ölçülmüş, bu da R²'yi gerçek ölçekten daha yüksek gösterir. Bu, zaman serisi "
-        "modellemede endüstri standardı bir tekniktir — Amazon ve Walmart'ın talep "
-        "tahmin motorları da aynı yaklaşımı kullanır."
+        "Veri setinde bir ürün **günlerin %71'inde hiç satılmıyor**, "
+        "satıldığı gün ise ortalama **3.54 adet** satılıyor. "
+        "Bu 'aralıklı talep' kalıbı e-ticarette yaygındır. "
+        "Hedef değişken `log(quantity + 1)` dönüşümüyle eğitilmiştir — "
+        "bu, sıfır-ağırlıklı dağılımın modeli bozmasını önleyen "
+        "endüstri standardı bir tekniktir."
     )
 with col_b:
     st.markdown("**Veri Sızıntısı (Leakage) Sıfır**")
@@ -48,7 +48,7 @@ with col_b:
         "Model gelecekteki tarihlere ait hiçbir veriyi eğitim sürecinde görmemiştir. "
         "Ayrıca özellik mühendisliğinde kullanılan tüm Lag ve Rolling değerler "
         "yalnızca **geçmiş gözlemlere** bakarak hesaplanmıştır. "
-        "Bu da %96'lık skorun hakiki bir öğrenme gücünü yansıttığını kanıtlar."
+        "Web arayüzünde 7 günlük tahmin, **özyinelemeli (recursive) yöntemle** üretilir."
     )
 
 st.divider()
