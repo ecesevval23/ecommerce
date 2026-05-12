@@ -1,0 +1,28 @@
+# ─── Sanal Ortam (Virtual Environment) ───────────────────────────────────────
+# Bu klasörler sanal ortama ait — GitHub'a gönderilmez
+Lib/
+Include/
+Scripts/
+etc/
+share/
+pyvenv.cfg
+
+# ─── Python Cache ─────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+
+# ─── Geçici / Debug Dosyaları ─────────────────────────────────────────────────
+*.txt
+!README.md
+!requirements.txt
+
+# ─── IDE ──────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.code-workspace
+
+# ─── OS ───────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
