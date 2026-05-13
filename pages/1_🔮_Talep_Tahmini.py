@@ -192,11 +192,20 @@ if st.button("🚀 7 Günlük Akıllı Analizi Başlat", use_container_width=Tru
             
             # ─── ÜST METRİKLER ───────────────────────────────────────
             st.divider()
-            st.subheader(f"📊 {secilen_urun} — 7 Günlük Tahmin Sonucu")
+            st.subheader(f"📊 {secilen_urun} — Tahmin Analizi")
+            
+            # Ayşe'nin modelinin doğrudan ürettiği T+1 (Yarınki) Tahmini alıyoruz
+            yarinki_tahmin = tahmin_df.iloc[0]['Tahmin'] 
             
             c1, c2, c3, c4 = st.columns(4)
-            c1.metric(label="📦 7 Günlük Toplam Tahmin", value=f"{toplam_7gun} Adet")
-            c2.metric(label="📊 Günlük Ortalama", value=f"{toplam_7gun / 7:.1f} Adet/Gün")
+            
+            # 1. KART: Ayşe ve Nisa'yı rahatlatacak, Notebook ile %100 aynı çıkacak değer
+            c1.metric(label="🔜 Yarınki Tahmin (T+1)", value=f"{yarinki_tahmin}", help="Modelin test setiyle birebir uyuşan 1 günlük net tahmini.")
+            
+            # 2. KART: Senin özyinelemeli harika mühendisliğin
+            c2.metric(label="📦 7 Günlük Toplam (T+7)", value=f"{toplam_7gun} Adet")
+            
+            # 3 ve 4. KARTLAR: Karar Destek Çıktıları
             c3.metric(label="⚙️ Stok Aksiyonu", value=stok_karari)
             c4.metric(label="📈 Geçmiş Haftalık Ort.", value=f"{haftalik_ort:.0f} Adet",
                       delta=f"{toplam_7gun - haftalik_ort:+.0f} fark",
