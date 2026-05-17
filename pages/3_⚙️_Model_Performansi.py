@@ -16,14 +16,14 @@ st.caption("Modelin, eğitim verisini hiç görmediği %20'lik kronolojik test s
 
 col1, col2, col3 = st.columns(3)
 with col1:
-    st.metric(label="📈 R² Skoru", value="96.37%", delta="Log uzayında")
+    st.metric(label="📈 R² Skoru", value="98.78%", delta="Log uzayında")
     st.caption("Tahmin edilen değerlerin gerçek değişkenliği ne kadar açıkladığı. **Önemli not:** Metrik log-transform sonrası hesaplanmıştır (bkz. aşağı).")
 with col2:
-    st.metric(label="🎯 MAE", value="0.12", delta="Log uzayında ✓", delta_color="inverse")
-    st.caption("Log uzayındaki ortalama mutlak hata. Gerçek ölçekte yaklaşık **0.13 adet** günlük sapmaya karşılık gelir.")
+    st.metric(label="🎯 MAE", value="0.04", delta="Log uzayında ✓", delta_color="inverse")
+    st.caption("Log uzayındaki ortalama mutlak hata. Gerçek ölçekte yaklaşık **0.04 adet** günlük sapmaya karşılık gelir.")
 with col3:
-    st.metric(label="📉 RMSE", value="0.37", delta="Log uzayında ✓", delta_color="inverse")
-    st.caption("Aykırı tahminlere karşı ağırlıklı hata. Gerçek ölçekte yaklaşık **0.45 adet** sapmaya eşdeğerdir.")
+    st.metric(label="📉 RMSE", value="0.08", delta="Log uzayında ✓", delta_color="inverse")
+    st.caption("Aykırı tahminlere karşı ağırlıklı hata. Gerçek ölçekte yaklaşık **0.08 adet** sapmaya eşdeğerdir.")
 
 st.divider()
 
@@ -48,7 +48,7 @@ with col_b:
         "Model gelecekteki tarihlere ait hiçbir veriyi eğitim sürecinde görmemiştir. "
         "Ayrıca özellik mühendisliğinde kullanılan tüm Lag ve Rolling değerler "
         "yalnızca **geçmiş gözlemlere** bakarak hesaplanmıştır. "
-        "Web arayüzünde 7 günlük tahmin, **özyinelemeli (recursive) yöntemle** üretilir."
+        "Web arayüzünde 7 günlük tahmin, **hibrit yöntemle (geçmiş test ve gelecek projeksiyonu)** üretilir."
     )
 
 st.divider()

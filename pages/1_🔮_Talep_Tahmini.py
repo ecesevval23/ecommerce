@@ -3,19 +3,25 @@ import pandas as pd
 import numpy as np
 import pickle
 import os
-import math
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import LabelEncoder
+import warnings
+warnings.filterwarnings("ignore")
 
-st.set_page_config(page_title="Akıllı Talep Tahmini & Stok Yönetimi", layout="wide")
+# --- ARAYÜZ KONFİGÜRASYONU VE BAŞLIK ---
+st.set_page_config(page_title="Akıllı Stok | Karar Destek Sistemi", layout="wide")
 
 st.title("🔮 Akıllı Talep Tahmini ve Karar Destek Sistemi")
-st.markdown("Yapay zeka modelimiz seçtiğiniz ürünün **son 30 günlük geçmişini** analiz ederek önümüzdeki **7 günlük talebi** tahmin eder ve aksiyon alınabilir stok tavsiyeleri sunar.")
+st.markdown("""
+Bu panel, makine öğrenmesi algoritmalarını (XGBoost) kullanarak seçilen ürünün geçmiş trendlerini analiz eder. 
+Dinamik zaman filtresi sayesinde hem **geçmişe dönük test (Backtesting)** yapabilir hem de **gelecek 7 günlük talebi** öngörebilirsiniz.
+""")
 
+# --- MODEL VE VERİ SETİ YÜKLEME ---
 @st.cache_resource
 def load_model_and_data():
     try:
-        csv_path = os.path.join("data", "synthetic_ecommerce_dataset.csv")
+        csv_path = os.path.join("data", "synthetic_ecommerce_dataset.csv") # Kendi dosya yoluna göre güncelle
         model_path = os.path.join("data", "xgboost_demand_forecasting.pkl")
         df = pd.read_csv(csv_path)
         with open(model_path, "rb") as f:
@@ -24,9 +30,9 @@ def load_model_and_data():
     except Exception as e:
         return None, str(e)
 
+# --- ÖZELLİK MÜHENDİSLİĞİ (PIPELINE) ---
 @st.cache_data
 def build_daily_sales(df):
-    """Eğitim kodunun birebir pipeline'ını uygular."""
     df_copy = df.copy()
     df_copy['purchase_date'] = pd.to_datetime(df_copy['purchase_date'])
     df_copy = df_copy.sort_values('purchase_date')
@@ -65,71 +71,91 @@ FEATURE_COLS = [
     'rolling_std_3', 'rolling_std_7', 'rolling_std_14', 'rolling_std_30'
 ]
 
-def recursive_forecast(model, daily_sales, product, n_days=7):
-    """
-    Recursive (Özyinelemeli) Tahmin:
-    Her gün bir önceki tahmini gerçekmiş gibi kabul ederek N gün ileriye tahmin yapar.
-    """
+# --- HİBRİT TAHMİN MOTORU (GÜNCELLENMİŞ) ---
+def hybrid_forecast(model, daily_sales, product, secilen_tarih, n_days=7):
+    secilen_tarih_pd = pd.to_datetime(secilen_tarih)
+    en_son_tarih_pd = daily_sales['purchase_date'].max()
+    
     product_data = daily_sales[daily_sales['product'] == product].copy()
-    if product_data.empty:
-        return None
-    
-    # Son satırı baz al
-    current_row = product_data.iloc[-1].copy()
-    son_tarih = current_row['purchase_date']
-    
-    # Geçmiş satış geçmişini (rolling hesabı için) listeye al
-    recent_sales = list(product_data['quantity'].values[-30:])
-    
+    if product_data.empty: return None
+        
     predictions = []
+    gecmis_veri = product_data[product_data['purchase_date'] <= secilen_tarih_pd]
+    if gecmis_veri.empty: return None
+        
+    recent_sales = list(gecmis_veri['quantity'].values[-30:])
+    current_row = gecmis_veri.iloc[-1].copy()
+    
+    # 🚨 DÜZELTME 1: Trend kaymasını çözüyoruz
+    urun_sayisi = len(daily_sales['product'].unique()) 
     
     for step in range(1, n_days + 1):
-        target_date = son_tarih + pd.Timedelta(days=step)
+        target_date = secilen_tarih_pd + pd.Timedelta(days=step)
         
-        # Yeni satır oluştur
-        new_row = current_row.copy()
-        new_row['purchase_date'] = target_date
-        new_row['day'] = target_date.day
-        new_row['month'] = target_date.month
-        new_row['weekday'] = target_date.weekday()
-        new_row['weekofyear'] = int(target_date.isocalendar().week)
-        new_row['is_weekend'] = 1 if target_date.weekday() >= 5 else 0
-        new_row['trend'] = current_row['trend'] + step
-        
-        # Lag'ları son satışlardan hesapla
-        n = len(recent_sales)
-        new_row['lag_1'] = recent_sales[-1] if n >= 1 else 0
-        new_row['lag_2'] = recent_sales[-2] if n >= 2 else 0
-        new_row['lag_3'] = recent_sales[-3] if n >= 3 else 0
-        new_row['lag_7'] = recent_sales[-7] if n >= 7 else 0
-        new_row['lag_14'] = recent_sales[-14] if n >= 14 else 0
-        new_row['lag_21'] = recent_sales[-21] if n >= 21 else 0
-        new_row['lag_30'] = recent_sales[-30] if n >= 30 else 0
-        
-        # Rolling hesapları
-        for w in [3, 7, 14, 30]:
-            window_data = recent_sales[-w:] if n >= w else recent_sales
-            new_row[f'rolling_mean_{w}'] = np.mean(window_data)
-            new_row[f'rolling_std_{w}'] = np.std(window_data, ddof=1) if len(window_data) > 1 else 0.0
-        
-        # Tahmin
-        X = pd.DataFrame([new_row])[FEATURE_COLS]
-        pred_log = model.predict(X)[0]
-        pred_real = float(np.clip(np.expm1(pred_log), 0, None))
-        pred_int = round(pred_real)  # Tam sayıya yuvarla
-        
-        predictions.append({
-            'Tarih': target_date,
-            'Gün': target_date.strftime('%A'),
-            'Tahmin': pred_int
-        })
-        
-        # Bu tahmini "gerçekmiş gibi" geçmişe ekle (Recursive adım)
-        recent_sales.append(pred_real)
-    
+        # --- DURUM 1: GEÇMİŞ TEST (JUPYTER İLE BİREBİR AYNI) ---
+        if target_date <= en_son_tarih_pd:
+            gercek_satir = product_data[product_data['purchase_date'] == target_date]
+            if not gercek_satir.empty:
+                X = gercek_satir[FEATURE_COLS]
+                pred_log = model.predict(X)[0]
+                pred_real = float(np.clip(np.expm1(pred_log), 0, None))
+                gercek_satis_adedi = int(gercek_satir.iloc[0]['quantity']) # Gerçek satış değerini çekiyoruz
+                
+                predictions.append({
+                    'Tarih': target_date,
+                    'Gün': target_date.strftime('%A'),
+                    'Tahmin': round(pred_real),  # Tertemiz tam sayı
+                    'Gerçekleşen Satış': int(gercek_satir.iloc[0]['quantity']),
+                    'Durum': 'Geçmiş Test'
+                })
+                recent_sales.append(gercek_satir.iloc[0]['quantity'])
+                current_row = gercek_satir.iloc[0].copy()
+            else:
+                break
+                
+        # --- DURUM 2: GELECEK TAHMİNİ (RECURSIVE) ---
+        else:
+            new_row = current_row.copy()
+            new_row['purchase_date'] = target_date
+            new_row['day'] = target_date.day
+            new_row['month'] = target_date.month
+            new_row['weekday'] = target_date.weekday()
+            new_row['weekofyear'] = int(target_date.isocalendar().week)
+            new_row['is_weekend'] = 1 if target_date.weekday() >= 5 else 0
+            new_row['trend'] = current_row['trend'] + urun_sayisi # 🚨 Trendi ürün sayısı kadar artırıyoruz
+            
+            n = len(recent_sales)
+            new_row['lag_1'] = recent_sales[-1] if n >= 1 else 0
+            new_row['lag_2'] = recent_sales[-2] if n >= 2 else 0
+            new_row['lag_3'] = recent_sales[-3] if n >= 3 else 0
+            new_row['lag_7'] = recent_sales[-7] if n >= 7 else 0
+            new_row['lag_14'] = recent_sales[-14] if n >= 14 else 0
+            new_row['lag_21'] = recent_sales[-21] if n >= 21 else 0
+            new_row['lag_30'] = recent_sales[-30] if n >= 30 else 0
+            
+            for w in [3, 7, 14, 30]:
+                window_data = recent_sales[-w:] if n >= w else recent_sales
+                new_row[f'rolling_mean_{w}'] = np.mean(window_data)
+                new_row[f'rolling_std_{w}'] = np.std(window_data, ddof=1) if len(window_data) > 1 else 0.0
+            
+            X = pd.DataFrame([new_row])[FEATURE_COLS]
+            pred_log = model.predict(X)[0]
+            pred_real = float(np.clip(np.expm1(pred_log), 0, None))
+            
+            predictions.append({
+                'Tarih': target_date,
+                'Gün': target_date.strftime('%A'),
+                'Tahmin': round(pred_real), # Tertemiz tam sayı
+                'Gerçekleşen Satış': None, 
+                'Durum': 'Gelecek Projeksiyonu'
+            })
+            
+            recent_sales.append(pred_real)
+            current_row = new_row
+            
     return pd.DataFrame(predictions)
 
-# ─── SAYFA BAŞLANGICI ─────────────────────────────────────────────────────────
+# --- UYGULAMA MANTIĞI ---
 res = load_model_and_data()
 if isinstance(res, tuple) and res[0] is not None:
     df, model = res
@@ -137,179 +163,128 @@ else:
     st.error(f"🚨 Dosyalar yüklenirken hata oluştu: {res}")
     st.stop()
 
+# --- ZAMAN FİLTRESİ VE TEST SETİ HESAPLAMALARI ---
+df['purchase_date'] = pd.to_datetime(df['purchase_date'])
+en_erken_tarih = df['purchase_date'].min()
+en_son_tarih = df['purchase_date'].max()
+
+# DİKKAT: Ayşe'nin dropna() mantığıyla uyuşması için ilk 30 günü atlayarak günleri sayıyoruz!
+gecerli_tarihler = pd.date_range(start=en_erken_tarih + pd.Timedelta(days=30), end=en_son_tarih, freq='D')
+
+# Ayşe ile BİREBİR aynı test başlangıç gününü buluyoruz
+split_index = int(len(gecerli_tarihler) * 0.80)
+test_baslangic_tarihi = gecerli_tarihler[split_index].date()
+
+# --- KULLANICI GİRDİ PANELİ (SIDEBAR) ---
+st.sidebar.header("📅 Zaman Filtresi")
+
+hedef_tarih = st.sidebar.date_input(
+    "🎯 Tahmin Edilecek İlk Gün",
+    value=en_son_tarih.date(),          
+    min_value=test_baslangic_tarihi, # Kullanıcı test verisinin ilk gününden öncesini ASLA seçemez
+    max_value=en_son_tarih.date() + pd.Timedelta(days=1)       
+)
+secilen_tarih = hedef_tarih - pd.Timedelta(days=1)
+
+st.sidebar.caption(f"Geçmiş tahminler için en erken {test_baslangic_tarihi.strftime('%d.%m.%Y')} tarihi seçilebilir.")
+
+st.sidebar.divider()
+
+st.sidebar.header("📦 Ürün Filtresi")
 kategoriler = sorted(df['category'].unique())
+secilen_kat = st.sidebar.selectbox("🏷️ Kategori", kategoriler)
+kategori_urunleri = df[df['category'] == secilen_kat]['product'].unique()
+secilen_urun = st.sidebar.selectbox("📦 Tahmin Edilecek Ürün", sorted(kategori_urunleri))
 
-st.divider()
-
-col1, col2 = st.columns(2)
-with col1:
-    secilen_kat = st.selectbox("🏷️ Kategori (Filtreleme)", kategoriler)
-with col2:
-    kategori_urunleri = df[df['category'] == secilen_kat]['product'].unique()
-    secilen_urun = st.selectbox("📦 Tahmin Edilecek Ürün", sorted(kategori_urunleri))
-
-son_tarih_pd = pd.to_datetime(df['purchase_date']).max()
-
-# Gün Türkçe isimleri
 gun_tr = {"Monday": "Pazartesi", "Tuesday": "Salı", "Wednesday": "Çarşamba",
           "Thursday": "Perşembe", "Friday": "Cuma", "Saturday": "Cumartesi", "Sunday": "Pazar"}
 
-st.info(f"📅 **Veri Setindeki Son Tarih:** {son_tarih_pd.strftime('%d.%m.%Y')} — Model, bu tarihten sonraki **7 günün** talebini özyinelemeli (recursive) yöntemle tahmin eder.")
+st.info(f"📍 **Seçilen Milat Tarihi:** {secilen_tarih.strftime('%d.%m.%Y')} — Model, bu tarihe kadar olan verileri baz alarak sonraki 7 günü hesaplayacaktır.")
 
-if st.button("🚀 7 Günlük Akıllı Analizi Başlat", use_container_width=True, type="primary"):
-    with st.spinner("Model 7 günlük recursive tahmin yapıyor... Her gün bir öncekini baz alır."):
+if st.button("🚀 7 Günlük Analizi Başlat", use_container_width=True, type="primary"):
+    with st.spinner("Model seçilen tarihe göre geçmişi derliyor ve gelecek 7 günü hesaplıyor..."):
         daily_sales = build_daily_sales(df)
         
-        tahmin_df = recursive_forecast(model, daily_sales, secilen_urun, n_days=7)
+        # Seçilen tarihi fonksiyona gönderiyoruz!
+        tahmin_df = hybrid_forecast(model, daily_sales, secilen_urun, secilen_tarih, n_days=7)
         
         if tahmin_df is None or tahmin_df.empty:
-            st.error("Seçilen ürün için hesaplama yapılamadı.")
+            st.error("Seçilen ürün ve tarih aralığı için yeterli veri bulunamadı.")
         else:
-            # Geçmiş veriler
-            gecmis = daily_sales[daily_sales['product'] == secilen_urun]
+            secilen_tarih_pd = pd.to_datetime(secilen_tarih)
+            gecmis = daily_sales[(daily_sales['product'] == secilen_urun) & (daily_sales['purchase_date'] <= secilen_tarih_pd)]
             son_30_gun = gecmis.tail(30)
+            
             ort_satis = son_30_gun['quantity'].mean() if not son_30_gun.empty else 1.0
             if pd.isna(ort_satis) or ort_satis == 0:
                 ort_satis = 0.5
             
-            # 7 günlük toplam
             toplam_7gun = tahmin_df['Tahmin'].sum()
-            haftalik_ort = ort_satis * 7  # Geçmiş haftalık beklenti
+            haftalik_ort = ort_satis * 7 
             
-            # Stok kararı (haftalık bazda)
             if toplam_7gun >= haftalik_ort * 1.3:
-                stok_karari = "🟢 Stok Artır"
-                detayli_karar = f"7 günlük toplam tahmin (**{toplam_7gun} adet**), geçmiş haftalık ortalamanın (**{haftalik_ort:.0f} adet**) üstünde. Stokları artırın!"
-                mesaj_tipi = "success"
+                stok_karari, mesaj_tipi = "🟢 Stok Artır", "success"
             elif toplam_7gun >= haftalik_ort * 0.7:
-                stok_karari = "🟡 Stok Koru"
-                detayli_karar = f"7 günlük toplam tahmin (**{toplam_7gun} adet**) geçmiş haftalık ortalamayla (**{haftalik_ort:.0f} adet**) uyumlu. Mevcut stok düzeyini koruyun."
-                mesaj_tipi = "warning"
+                stok_karari, mesaj_tipi = "🟡 Stok Koru", "warning"
             else:
-                stok_karari = "🔴 Stok Azalt"
-                detayli_karar = f"7 günlük toplam tahmin (**{toplam_7gun} adet**), geçmiş haftalık ortalamanın (**{haftalik_ort:.0f} adet**) altında. Talep durgunluğu bekleniyor."
-                mesaj_tipi = "error"
+                stok_karari, mesaj_tipi = "🔴 Stok Azalt", "error"
             
-            # ─── ÜST METRİKLER ───────────────────────────────────────
+            # --- ÜST METRİKLER ---
             st.divider()
             st.subheader(f"📊 {secilen_urun} — Tahmin Analizi")
             
-            # Ayşe'nin modelinin doğrudan ürettiği T+1 (Yarınki) Tahmini alıyoruz
             yarinki_tahmin = tahmin_df.iloc[0]['Tahmin'] 
             
             c1, c2, c3, c4 = st.columns(4)
-            
-            # 1. KART: Ayşe ve Nisa'yı rahatlatacak, Notebook ile %100 aynı çıkacak değer
-            c1.metric(label="🔜 Yarınki Tahmin (T+1)", value=f"{yarinki_tahmin}", help="Modelin test setiyle birebir uyuşan 1 günlük net tahmini.")
-            
-            # 2. KART: Senin özyinelemeli harika mühendisliğin
+            c1.metric(label="🔜 İlk Gün Tahmini (T+1)", value=f"{yarinki_tahmin} Adet", help="Seçilen tarihten tam 1 gün sonrasının tahmini (Jupyter Notebook'taki test değerleriyle aynıdır).")
             c2.metric(label="📦 7 Günlük Toplam (T+7)", value=f"{toplam_7gun} Adet")
-            
-            # 3 ve 4. KARTLAR: Karar Destek Çıktıları
             c3.metric(label="⚙️ Stok Aksiyonu", value=stok_karari)
-            c4.metric(label="📈 Geçmiş Haftalık Ort.", value=f"{haftalik_ort:.0f} Adet",
-                      delta=f"{toplam_7gun - haftalik_ort:+.0f} fark",
-                      help="Son 30 günlük ortalamanın 7 günlük karşılığı")
+            c4.metric(label="📈 Geçmiş Haftalık Ort.", value=f"{haftalik_ort:.0f} Adet", delta=f"{toplam_7gun - haftalik_ort:+.0f} fark")
             
-            # Aksiyon mesajı
-            if mesaj_tipi == "success":
-                st.success(f"**Aksiyon Planı:** {detayli_karar}")
-            elif mesaj_tipi == "warning":
-                st.warning(f"**Aksiyon Planı:** {detayli_karar}")
-            else:
-                st.error(f"**Aksiyon Planı:** {detayli_karar}")
-            
-            # ─── GÜNLÜK TAHMİN TABLOSU ───────────────────────────────
+            # --- TABLO ---
             st.markdown("#### 📋 Günlük Tahmin Detayı")
-            
-            tablo = tahmin_df.copy()
+            tablo = tahmin_df.copy() # Orijinal veriyi bozmuyoruz
             tablo['Tarih'] = tablo['Tarih'].dt.strftime('%d.%m.%Y')
             tablo['Gün'] = tablo['Gün'].map(gun_tr)
+            
+            # Süsleme işlemlerini sadece ekranda görünecek kopyaya uyguluyoruz
             tablo['Tahmin'] = tablo['Tahmin'].apply(lambda x: f"{x} Adet")
+            tablo['Gerçekleşen Satış'] = tablo['Gerçekleşen Satış'].apply(
+                lambda x: f"{int(x)} Adet" if pd.notna(x) else "Henüz Yaşanmadı"
+            )
+            
             tablo.index = range(1, len(tablo) + 1)
             tablo.index.name = "Gün #"
             st.dataframe(tablo, use_container_width=True)
             
-            # ─── GEÇMİŞ BAĞLAM ──────────────────────────────────────
-            st.markdown("#### 📆 Geçmiş Performans Bağlamı")
-            mc1, mc2, mc3 = st.columns(3)
-            
-            son_7_gun_gecmis = gecmis.tail(7)
-            toplam_30 = int(son_30_gun['quantity'].sum())
-            ort_7g = round(son_7_gun_gecmis['quantity'].mean(), 1) if not son_7_gun_gecmis.empty else 0
-            
-            mc1.metric(label="📅 Son 30 Gün Toplam", value=f"{toplam_30} Adet")
-            mc2.metric(label="📊 Son 7 Gün Ort.", value=f"{ort_7g} Adet/Gün")
-            mc3.metric(label="📌 Son 30 Gün Ort.", value=f"{round(ort_satis, 1)} Adet/Gün")
-            
-            # ─── GRAFİK: Geçmiş 30 Gün + Gelecek 7 Gün ─────────────
+            # --- GRAFİK ---
             st.markdown("### 📉 30 Günlük Geçmiş + 7 Günlük Projeksiyon")
-            
             fig, ax = plt.subplots(figsize=(14, 5))
             
-            # Geçmiş
-            ax.plot(son_30_gun['purchase_date'], son_30_gun['quantity'],
-                    marker='o', markersize=4, linestyle='-', linewidth=2,
-                    color='#2980b9', label='Geçmiş Satışlar', zorder=3)
-            ax.fill_between(son_30_gun['purchase_date'], son_30_gun['quantity'],
-                            alpha=0.1, color='#2980b9')
+            ax.plot(son_30_gun['purchase_date'], son_30_gun['quantity'], marker='o', markersize=4, linestyle='-', linewidth=2, color='#2980b9', label='Geçmiş Satışlar (Gerçek)')
+            ax.fill_between(son_30_gun['purchase_date'], son_30_gun['quantity'], alpha=0.1, color='#2980b9')
             
-            # Gelecek tahminler
             tahmin_tarihleri = tahmin_df['Tarih']
             tahmin_degerleri = tahmin_df['Tahmin']
             
-            # Son gerçek günden ilk tahmine bağlantı çizgisi
             if not son_30_gun.empty:
                 son_gercek_tarih = son_30_gun.iloc[-1]['purchase_date']
                 son_gercek_satis = son_30_gun.iloc[-1]['quantity']
-                ax.plot([son_gercek_tarih, tahmin_tarihleri.iloc[0]],
-                        [son_gercek_satis, tahmin_degerleri.iloc[0]],
-                        linestyle='--', linewidth=1.5, color='#e74c3c', alpha=0.5)
+                ax.plot([son_gercek_tarih, tahmin_tarihleri.iloc[0]], [son_gercek_satis, tahmin_degerleri.iloc[0]], linestyle='--', linewidth=1.5, color='#e74c3c', alpha=0.5)
             
-            ax.plot(tahmin_tarihleri, tahmin_degerleri,
-                    marker='*', markersize=12, linestyle='-', linewidth=2,
-                    color='#e74c3c', label='7 Günlük Tahmin', zorder=4)
-            ax.fill_between(tahmin_tarihleri, tahmin_degerleri,
-                            alpha=0.1, color='#e74c3c')
+            ax.plot(tahmin_tarihleri, tahmin_degerleri, marker='*', markersize=12, linestyle='-', linewidth=2, color='#e74c3c', label='7 Günlük Gelecek Tahmini')
+            ax.fill_between(tahmin_tarihleri, tahmin_degerleri, alpha=0.1, color='#e74c3c')
             
-            # Tahmin noktalarına değer yaz
             for tarih, deger in zip(tahmin_tarihleri, tahmin_degerleri):
                 if deger > 0:
-                    ax.annotate(f"{deger}", xy=(tarih, deger),
-                                xytext=(0, 8), textcoords='offset points',
-                                color='#e74c3c', fontweight='bold', fontsize=8, ha='center')
+                    ax.annotate(f"{deger}", xy=(tarih, deger), xytext=(0, 8), textcoords='offset points', color='#e74c3c', fontweight='bold', fontsize=8, ha='center')
             
             ax.set_ylabel("Satış Adedi", fontsize=10)
             ax.tick_params(axis='x', rotation=35, labelsize=8)
-            ax.tick_params(axis='y', labelsize=9)
             ax.yaxis.set_major_locator(plt.MaxNLocator(integer=True))
-            ax.grid(True, axis='y', alpha=0.2, linestyle='--')
-            ax.spines['top'].set_visible(False)
-            ax.spines['right'].set_visible(False)
             ax.legend(loc='upper left', fontsize=9, framealpha=0.3)
             
             fig.patch.set_alpha(0.0)
             ax.patch.set_alpha(0.0)
             plt.tight_layout()
             st.pyplot(fig)
-            
-            # ─── Model Kapsamı Notu ──────────────────────────────────
-            with st.expander("ℹ️ Recursive Forecasting Hakkında"):
-                st.markdown("""
-**Özyinelemeli (Recursive) Tahmin Nedir?**
-
-Model tek seferde sadece 1 gün ileriye tahmin yapabilir. Ancak bu tahmini "gerçekleşmiş satış" gibi kabul edip bir sonraki günü de tahmin edebiliriz. Bu döngüyü tekrarlayarak 7 günlük projeksiyon elde ederiz.
-
-**⚠️ Dikkat:** Her adımda hata payı birikir. İlk günlerin tahmini daha güvenilir, son günler daha belirsizdir.
-
-| Gün | Güvenilirlik |
-|-----|-------------|
-| T+1 | ⭐⭐⭐⭐⭐ Çok Yüksek |
-| T+2-3 | ⭐⭐⭐⭐ Yüksek |
-| T+4-5 | ⭐⭐⭐ Orta |
-| T+6-7 | ⭐⭐ Kabul Edilebilir |
-
-**📍 Gelişim Yol Haritası:**
-- **Aylık Tahmin:** Facebook Prophet veya LSTM ile mevsimsellik analizi
-- **ERP Entegrasyonu:** Gerçek depo seviyeleriyle bağlantı kurularak otomatik sipariş üretimi
-                """)

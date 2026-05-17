@@ -9,7 +9,7 @@
 
 Bu proje, bir e-ticaret platformunun geçmiş satış verilerini analiz ederek **önümüzdeki 7 günün ürün talebini** tahmin eden ve bu tahminleri **aksiyon alınabilir stok kararlarına** dönüştüren bir karar destek sistemidir.
 
-XGBoost makine öğrenmesi algoritması, 22 farklı zaman serisi özelliği ve **özyinelemeli (recursive) forecasting** yöntemiyle çalışır.
+XGBoost makine öğrenmesi algoritması, 22 farklı zaman serisi özelliği ve **hibrit tahmin (hybrid forecasting)** yöntemiyle çalışır.
 
 ---
 
@@ -29,7 +29,7 @@ synthetic_ecommerce_dataset.csv   (Ham Sipariş Kayıtları — 10.000 satır, 1
                           ▼
                XGBoost Modeli → xgboost_demand_forecasting.pkl
                           │
-                          ├── 1_Talep_Tahmini.py (7 Günlük Recursive Tahmin)
+                          ├── 1_Talep_Tahmini.py (7 Günlük Hibrit Tahmin)
                           └── 3_Model_Performansi.py (Metrikler)
 ```
 
@@ -41,7 +41,7 @@ synthetic_ecommerce_dataset.csv   (Ham Sipariş Kayıtları — 10.000 satır, 1
 E-Ticaret/
 ├── Anasayfa.py                      # Ana dashboard — KPI metrikleri, satış trendleri
 ├── pages/
-│   ├── 1_🔮_Talep_Tahmini.py        # 7 günlük recursive tahmin + stok karar motoru
+│   ├── 1_🔮_Talep_Tahmini.py        # 7 günlük hibrit tahmin + stok karar motoru
 │   ├── 2_📊_Veri_Analizi.py         # Keşifsel veri analizi (EDA)
 │   └── 3_⚙️_Model_Performansi.py    # Model metrikleri ve feature importance
 ├── data/
@@ -71,17 +71,19 @@ E-Ticaret/
 
 | Metrik | Değer | Açıklama |
 |--------|-------|---------|
-| **R²** | 0.9637 | Log uzayında |
-| **MAE** | 0.12 | ≈ 0.13 adet gerçek sapma |
-| **RMSE** | 0.37 | ≈ 0.45 adet gerçek sapma |
+| **R²** | 0.9878 | Log uzayında |
+| **MAE** | 0.04 | ≈ 0.04 adet gerçek sapma |
+| **RMSE** | 0.08 | ≈ 0.08 adet gerçek sapma |
 
 ### Veri Yapısı: Aralıklı Talep (Intermittent Demand)
 
 Bir ürün **günlerin %71'inde hiç satılmıyor**, satıldığı gün ise ortalama **3.54 adet** satılıyor. Bu kalıp e-ticarette çok yaygındır. Model bu yapıyı doğru yakalıyor — tahminler 0-0-0-7-0-6 şeklinde görünür.
 
-### Recursive (Özyinelemeli) Forecasting
+### Hibrit (Hybrid) Forecasting
 
-Model tek seferde 1 gün ileriye tahmin yapar. Ancak bu tahmini "gerçekleşmiş satış" gibi kabul edip bir sonraki günü de tahmin ederiz. Bu döngüyü 7 kez tekrarlayarak haftalık projeksiyon elde ederiz.
+Model, seçilen tarihe göre iki farklı modda çalışır:
+1. **Geçmiş Test (Backtesting):** Seçilen tarih geçmişteyse, gerçek satış verileriyle model tahminlerini karşılaştırır.
+2. **Gelecek Tahmini (Projeksiyon):** Gelecek günler için model kendi tahminlerini "gerçekleşmiş satış" gibi kabul ederek özyinelemeli şekilde haftalık projeksiyon elde eder.
 
 ---
 
@@ -119,6 +121,6 @@ streamlit run Anasayfa.py
 | Sayfa | İşlev |
 |-------|-------|
 | **Anasayfa** | KPI metrikleri, aylık trend ve ödeme yöntemi grafikleri |
-| **Talep Tahmini** | Ürün seçimi → 7 günlük recursive tahmin → Haftalık stok aksiyonu → Trend grafiği |
+| **Talep Tahmini** | Ürün seçimi → 7 günlük hibrit tahmin → Haftalık stok aksiyonu → Trend grafiği |
 | **Veri Analizi** | Kategori bazlı satış, günlük yoğunluk, KDE, korelasyon, scatter |
 | **Model Performansı** | R²/MAE/RMSE, aralıklı talep açıklaması, feature importance |
