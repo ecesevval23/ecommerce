@@ -71,9 +71,9 @@ E-Ticaret/
 
 | Metrik | Değer | Açıklama |
 |--------|-------|---------|
-| **R²** | 0.9878 | Log uzayında |
-| **MAE** | 0.04 | ≈ 0.04 adet gerçek sapma |
-| **RMSE** | 0.08 | ≈ 0.08 adet gerçek sapma |
+| **R²** | 0.9637 | Log uzayında |
+| **MAE** | 0.12 | ≈ 0.13 adet gerçek sapma |
+| **RMSE** | 0.37 | ≈ 0.45 adet gerçek sapma |
 
 ### Veri Yapısı: Aralıklı Talep (Intermittent Demand)
 
