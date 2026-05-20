@@ -13,15 +13,15 @@ st.set_page_config(page_title="Akıllı Stok | Karar Destek Sistemi", layout="wi
 
 st.title("🔮 Akıllı Talep Tahmini ve Karar Destek Sistemi")
 st.markdown("""
-Bu panel, makine öğrenmesi algoritmalarını (XGBoost) kullanarak seçilen ürünün geçmiş trendlerini analiz eder. 
-Dinamik zaman filtresi sayesinde hem **geçmişe dönük test (Backtesting)** yapabilir hem de **gelecek 7 günlük talebi** öngörebilirsiniz.
+Bu panel, makine öğrenmesi algoritmalarını (XGBoost) kullanarak seçilen ürünün geçmiş trendlerini analiz etmektedir. 
+Dinamik zaman filtresi sayesinde **geçmişe dönük test (Backtesting)** yapılabilir ve **gelecek 7 günlük talep** öngörülebilir.
 """)
 
 # --- MODEL VE VERİ SETİ YÜKLEME ---
 @st.cache_resource
 def load_model_and_data():
     try:
-        csv_path = os.path.join("data", "synthetic_ecommerce_dataset.csv") # Kendi dosya yoluna göre güncelle
+        csv_path = os.path.join("data", "synthetic_ecommerce_dataset.csv")
         model_path = os.path.join("data", "xgboost_demand_forecasting.pkl")
         df = pd.read_csv(csv_path)
         with open(model_path, "rb") as f:
@@ -86,7 +86,7 @@ def hybrid_forecast(model, daily_sales, product, secilen_tarih, n_days=7):
     recent_sales = list(gecmis_veri['quantity'].values[-30:])
     current_row = gecmis_veri.iloc[-1].copy()
     
-    # 🚨 DÜZELTME 1: Trend kaymasını çözüyoruz
+    # Trend kayması düzeltilmesi
     urun_sayisi = len(daily_sales['product'].unique()) 
     
     for step in range(1, n_days + 1):
@@ -99,12 +99,12 @@ def hybrid_forecast(model, daily_sales, product, secilen_tarih, n_days=7):
                 X = gercek_satir[FEATURE_COLS]
                 pred_log = model.predict(X)[0]
                 pred_real = float(np.clip(np.expm1(pred_log), 0, None))
-                gercek_satis_adedi = int(gercek_satir.iloc[0]['quantity']) # Gerçek satış değerini çekiyoruz
+                gercek_satis_adedi = int(gercek_satir.iloc[0]['quantity']) # Gerçek satış değerinin alınması
                 
                 predictions.append({
                     'Tarih': target_date,
                     'Gün': target_date.strftime('%A'),
-                    'Tahmin': round(pred_real),  # Tertemiz tam sayı
+                    'Tahmin': round(pred_real),  # Tam sayı formatı
                     'Gerçekleşen Satış': int(gercek_satir.iloc[0]['quantity']),
                     'Durum': 'Geçmiş Test'
                 })
@@ -122,7 +122,7 @@ def hybrid_forecast(model, daily_sales, product, secilen_tarih, n_days=7):
             new_row['weekday'] = target_date.weekday()
             new_row['weekofyear'] = int(target_date.isocalendar().week)
             new_row['is_weekend'] = 1 if target_date.weekday() >= 5 else 0
-            new_row['trend'] = current_row['trend'] + urun_sayisi # 🚨 Trendi ürün sayısı kadar artırıyoruz
+            new_row['trend'] = current_row['trend'] + urun_sayisi # Trend değeri ürün sayısı kadar artırılır
             
             n = len(recent_sales)
             new_row['lag_1'] = recent_sales[-1] if n >= 1 else 0
@@ -145,7 +145,7 @@ def hybrid_forecast(model, daily_sales, product, secilen_tarih, n_days=7):
             predictions.append({
                 'Tarih': target_date,
                 'Gün': target_date.strftime('%A'),
-                'Tahmin': round(pred_real), # Tertemiz tam sayı
+                'Tahmin': round(pred_real), # Tam sayı formatı
                 'Gerçekleşen Satış': None, 
                 'Durum': 'Gelecek Projeksiyonu'
             })
@@ -168,10 +168,10 @@ df['purchase_date'] = pd.to_datetime(df['purchase_date'])
 en_erken_tarih = df['purchase_date'].min()
 en_son_tarih = df['purchase_date'].max()
 
-# DİKKAT: Ayşe'nin dropna() mantığıyla uyuşması için ilk 30 günü atlayarak günleri sayıyoruz!
+# dropna() işlemiyle uyumlu olması adına ilk 30 gün atlanarak sayım yapılır.
 gecerli_tarihler = pd.date_range(start=en_erken_tarih + pd.Timedelta(days=30), end=en_son_tarih, freq='D')
 
-# Ayşe ile BİREBİR aynı test başlangıç gününü buluyoruz
+# Test başlangıç günü belirlenir.
 split_index = int(len(gecerli_tarihler) * 0.80)
 test_baslangic_tarihi = gecerli_tarihler[split_index].date()
 
@@ -205,7 +205,7 @@ if st.button("🚀 7 Günlük Analizi Başlat", use_container_width=True, type="
     with st.spinner("Model seçilen tarihe göre geçmişi derliyor ve gelecek 7 günü hesaplıyor..."):
         daily_sales = build_daily_sales(df)
         
-        # Seçilen tarihi fonksiyona gönderiyoruz!
+        # Seçilen tarih fonksiyona iletilir.
         tahmin_df = hybrid_forecast(model, daily_sales, secilen_urun, secilen_tarih, n_days=7)
         
         if tahmin_df is None or tahmin_df.empty:
@@ -243,11 +243,11 @@ if st.button("🚀 7 Günlük Analizi Başlat", use_container_width=True, type="
             
             # --- TABLO ---
             st.markdown("#### 📋 Günlük Tahmin Detayı")
-            tablo = tahmin_df.copy() # Orijinal veriyi bozmuyoruz
+            tablo = tahmin_df.copy() # Orijinal verinin kopyası alınır.
             tablo['Tarih'] = tablo['Tarih'].dt.strftime('%d.%m.%Y')
             tablo['Gün'] = tablo['Gün'].map(gun_tr)
             
-            # Süsleme işlemlerini sadece ekranda görünecek kopyaya uyguluyoruz
+            # Görsel düzenlemeler sadece ekranda gösterilecek kopya üzerinde uygulanır.
             tablo['Tahmin'] = tablo['Tahmin'].apply(lambda x: f"{x} Adet")
             tablo['Gerçekleşen Satış'] = tablo['Gerçekleşen Satış'].apply(
                 lambda x: f"{int(x)} Adet" if pd.notna(x) else "Henüz Yaşanmadı"

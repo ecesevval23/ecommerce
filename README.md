@@ -77,13 +77,13 @@ E-Ticaret/
 
 ### Veri Yapısı: Aralıklı Talep (Intermittent Demand)
 
-Bir ürün **günlerin %71'inde hiç satılmıyor**, satıldığı gün ise ortalama **3.54 adet** satılıyor. Bu kalıp e-ticarette çok yaygındır. Model bu yapıyı doğru yakalıyor — tahminler 0-0-0-7-0-6 şeklinde görünür.
+Bir ürün **günlerin %71'inde hiç satılmamakta**, satıldığı gün ise ortalama **3.54 adet** satılmaktadır. Bu kalıp e-ticarette çok yaygındır. Model bu yapıyı doğru yakalamaktadır — tahminler 0-0-0-7-0-6 şeklinde üretilmektedir.
 
 ### Hibrit (Hybrid) Forecasting
 
-Model, seçilen tarihe göre iki farklı modda çalışır:
-1. **Geçmiş Test (Backtesting):** Seçilen tarih geçmişteyse, gerçek satış verileriyle model tahminlerini karşılaştırır.
-2. **Gelecek Tahmini (Projeksiyon):** Gelecek günler için model kendi tahminlerini "gerçekleşmiş satış" gibi kabul ederek özyinelemeli şekilde haftalık projeksiyon elde eder.
+Model, seçilen tarihe göre iki farklı modda çalışmaktadır:
+1. **Geçmiş Test (Backtesting):** Seçilen tarih geçmişteyse, gerçek satış verileriyle model tahminleri karşılaştırılır.
+2. **Gelecek Tahmini (Projeksiyon):** Gelecek günler için model kendi tahminlerini "gerçekleşmiş satış" gibi kabul ederek özyinelemeli şekilde haftalık projeksiyon elde edilir.
 
 ---
 

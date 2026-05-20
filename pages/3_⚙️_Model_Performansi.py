@@ -8,7 +8,7 @@ import matplotlib.patches as mpatches
 
 st.set_page_config(page_title="Model Performansı | Akıllı Stok", layout="wide")
 st.title("⚙️ XGBoost Modeli — Başarım Metrikleri")
-st.markdown("E-ticaret talep tahmininde kullandığımız XGBoost zaman serisi modelinin akademik metrikleri ve karar mekanizması.")
+st.markdown("E-ticaret talep tahmininde kullanılan XGBoost zaman serisi modelinin akademik metrikleri ve karar mekanizması.")
 
 # ─── METRİKLER ────────────────────────────────────────────────────────────────
 st.header("📊 Test Seti Başarım Metrikleri")
@@ -17,7 +17,7 @@ st.caption("Modelin, eğitim verisini hiç görmediği %20'lik kronolojik test s
 col1, col2, col3 = st.columns(3)
 with col1:
     st.metric(label="📈 R² Skoru", value="96.37%", delta="Log uzayında")
-    st.caption("Tahmin edilen değerlerin gerçek değişkenliği ne kadar açıkladığı. **Önemli not:** Metrik log-transform sonrası hesaplanmıştır (bkz. aşağı).")
+    st.caption("Tahmin edilen değerlerin gerçek değişkenliği ne kadar açıkladığı. **Önemli not:** Metrik log-transform sonrası hesaplanmıştır.")
 with col2:
     st.metric(label="🎯 MAE", value="0.12", delta="Log uzayında ✓", delta_color="inverse")
     st.caption("Log uzayındaki ortalama mutlak hata. Gerçek ölçekte yaklaşık **0.13 adet** günlük sapmaya karşılık gelir.")
@@ -28,7 +28,7 @@ with col3:
 st.divider()
 
 # ─── SKORLAR HAKKINDA DÜRÜST AÇIKLAMA ─────────────────────────────────────────
-st.subheader("🔬 Metrikler Neden Bu Kadar İyi? (Dürüst Teknik Açıklama)")
+st.subheader("🔬 Metrik Analizi ve Teknik Açıklamalar")
 
 col_a, col_b = st.columns(2)
 with col_a:
@@ -48,7 +48,7 @@ with col_b:
         "Model gelecekteki tarihlere ait hiçbir veriyi eğitim sürecinde görmemiştir. "
         "Ayrıca özellik mühendisliğinde kullanılan tüm Lag ve Rolling değerler "
         "yalnızca **geçmiş gözlemlere** bakarak hesaplanmıştır. "
-        "Web arayüzünde 7 günlük tahmin, **hibrit yöntemle (geçmiş test ve gelecek projeksiyonu)** üretilir."
+        "Web arayüzünde 7 günlük tahmin, **hibrit yöntemle (geçmiş test ve gelecek projeksiyonu)** üretilmektedir."
     )
 
 st.divider()
@@ -91,7 +91,7 @@ st.divider()
 
 # ─── FEATURE IMPORTANCE ───────────────────────────────────────────────────────
 st.subheader("🧠 Modelin Karar Mekanizması (Feature Importance)")
-st.write("Yapay zekanın tahminde bulunurken hangi özelliklere ne kadar ağırlık verdiği (En önemli 15 özellik):")
+st.write("Modelin tahmin yaparken özelliklere atadığı ağırlıklar (En önemli 15 özellik):")
 
 try:
     with open(os.path.join("data", "xgboost_demand_forecasting.pkl"), "rb") as f:
