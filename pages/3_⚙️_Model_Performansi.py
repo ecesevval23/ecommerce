@@ -105,8 +105,13 @@ try:
         'Rolling Ort. 3G', 'Rolling Ort. 7G', 'Rolling Ort. 14G', 'Rolling Ort. 30G',
         'Rolling Std. 3G', 'Rolling Std. 7G', 'Rolling Std. 14G', 'Rolling Std. 30G'
     ]
-    importances = model_xgboost.feature_importances_
-    fi_df = pd.DataFrame({'Özellik': feature_names, 'Önem': importances})
+
+    # Booster nesnesinden 'weight' (kullanım sıklığı) skorlarını alıyoruz (rapordaki grafikle birebir aynı olması için)
+    booster = model_xgboost.get_booster()
+    score_dict = booster.get_score(importance_type='weight')
+    raw_importances = [score_dict.get(f, 0.0) for f in booster.feature_names]
+
+    fi_df = pd.DataFrame({'Özellik': feature_names, 'Önem': raw_importances})
     fi_df = fi_df.sort_values('Önem', ascending=True).tail(15)
 
     q75 = fi_df['Önem'].quantile(0.75)
@@ -114,11 +119,16 @@ try:
 
     fig, ax = plt.subplots(figsize=(10, 6))
     bars = ax.barh(fi_df['Özellik'], fi_df['Önem'], color=colors, edgecolor='none')
-    ax.set_xlabel("Karara Etki Ağırlığı (Gain)")
+    ax.set_xlabel("Karar Ağaçlarında Kullanılma Sıklığı (Weight / Split Count)")
+
+    # Etiketlerin grafik dışına taşmasını önlemek için x eksenini biraz genişletiyoruz
+    max_val = fi_df['Önem'].max()
+    ax.set_xlim(0, max_val * 1.15)
+    val_offset = max_val * 0.01
 
     for bar, val in zip(bars, fi_df['Önem']):
-        ax.text(val + 0.0005, bar.get_y() + bar.get_height() / 2,
-                f'{val:.4f}', va='center', fontsize=8)
+        ax.text(val + val_offset, bar.get_y() + bar.get_height() / 2,
+                f'{int(val)}', va='center', fontsize=8)
 
     red_patch = mpatches.Patch(color='#e74c3c', label='En Kritik Özellikler (Top %25)')
     blue_patch = mpatches.Patch(color='#2980b9', label='Diğer Özellikler')
